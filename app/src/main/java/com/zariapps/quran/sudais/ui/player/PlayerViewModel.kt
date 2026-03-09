@@ -5,7 +5,6 @@ import com.zariapps.quran.sudais.data.model.SurahData
 import com.zariapps.quran.sudais.player.PlayerManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
 @HiltViewModel
