@@ -3,7 +3,6 @@ package com.zariapps.quran.sudais
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.datastore.core.DataStore
@@ -24,7 +23,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
         setContent {
             val isDarkMode by dataStore.data
                 .map { it[SettingsViewModel.DARK_MODE_KEY] ?: false }

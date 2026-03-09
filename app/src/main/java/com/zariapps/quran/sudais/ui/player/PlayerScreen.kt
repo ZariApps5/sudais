@@ -94,15 +94,15 @@ fun PlayerScreen(
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
+                        text = "${currentSurah ?: ""}",
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                    )
+                    Text(
                         text = surahInfo?.nameArabic ?: "",
                         style = MaterialTheme.typography.headlineLarge,
                         fontSize = 32.sp,
                         color = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        text = "${currentSurah ?: ""}",
-                        style = MaterialTheme.typography.headlineMedium,
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
                     )
                 }
             }
