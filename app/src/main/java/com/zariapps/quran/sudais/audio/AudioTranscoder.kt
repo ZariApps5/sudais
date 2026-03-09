@@ -8,22 +8,22 @@ import android.media.MediaMuxer
 import java.io.File
 
 /**
- * Transcodes an audio file (e.g. MP3) to AAC in an M4A container.
+ * Transcodes an audio file (MP3) → AAC-LC mono M4A.
  *
- * Why AAC over MP3 at the same bitrate:
- *   - AAC is ~30% more efficient than MP3
- *   - 64 kbps AAC ≈ 128 kbps MP3 in perceived quality for speech/recitation
- *   - Native Android support — no third-party library needed
+ * Choices:
+ *   • 48 kbps mono  — Quran recitation is a single voice; mono at 48 kbps is
+ *                      perceptually transparent for speech on any headphones or speaker.
+ *   • ~3× smaller   — stereo 128–160 kbps MP3 → mono 48 kbps AAC.
+ *   • Bounded queue — MAX_PENDING_PCM caps RAM use so long surahs (Al-Baqarah,
+ *                     2.5 h) don't cause OOM. Back-pressure slows the decoder
+ *                     when the encoder falls behind.
  */
 object AudioTranscoder {
 
-    private const val TARGET_BITRATE = 64_000 // 64 kbps
+    private const val TARGET_BITRATE = 48_000   // 48 kbps
+    private const val OUTPUT_CHANNELS = 1        // always mono
+    private const val MAX_PENDING_PCM = 12       // ~96 KB max buffered PCM
 
-    /**
-     * Transcodes [inputFile] → [outputFile] (.m4a).
-     * Runs synchronously — call from a background coroutine (Dispatchers.IO).
-     * Returns true on success; on failure the output file is deleted.
-     */
     fun transcodeToAac(inputFile: File, outputFile: File): Boolean {
         val extractor = MediaExtractor()
         var decoder: MediaCodec? = null
@@ -33,7 +33,6 @@ object AudioTranscoder {
         return try {
             extractor.setDataSource(inputFile.absolutePath)
 
-            // Locate the audio track
             var inputFormat: MediaFormat? = null
             var trackIndex = -1
             for (i in 0 until extractor.trackCount) {
@@ -49,16 +48,17 @@ object AudioTranscoder {
 
             val inputMime = inputFormat.getString(MediaFormat.KEY_MIME)!!
             val sampleRate = inputFormat.getIntegerSafe(MediaFormat.KEY_SAMPLE_RATE, 44100)
-            val channelCount = inputFormat.getIntegerSafe(MediaFormat.KEY_CHANNEL_COUNT, 1)
+            val inputChannels = inputFormat.getIntegerSafe(MediaFormat.KEY_CHANNEL_COUNT, 1)
+            val needsDownmix = inputChannels > OUTPUT_CHANNELS
 
-            // Decoder: source format → raw PCM
+            // Decoder: source (MP3) → raw PCM
             decoder = MediaCodec.createDecoderByType(inputMime)
             decoder.configure(inputFormat, null, null, 0)
             decoder.start()
 
-            // Encoder: raw PCM → AAC-LC
+            // Encoder: PCM → AAC-LC mono 48 kbps
             val encoderFormat = MediaFormat.createAudioFormat(
-                MediaFormat.MIMETYPE_AUDIO_AAC, sampleRate, channelCount
+                MediaFormat.MIMETYPE_AUDIO_AAC, sampleRate, OUTPUT_CHANNELS
             ).apply {
                 setInteger(MediaFormat.KEY_BIT_RATE, TARGET_BITRATE)
                 setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
@@ -68,12 +68,11 @@ object AudioTranscoder {
             encoder.configure(encoderFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
             encoder.start()
 
-            // Muxer: wraps AAC into .m4a container
             muxer = MediaMuxer(outputFile.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
 
-            // State
             val bufferInfo = MediaCodec.BufferInfo()
-            val pendingPcm = ArrayDeque<Pair<ByteArray, Long>>() // (pcmBytes, presentationTimeUs)
+            // Bounded queue — prevents OOM on very long surahs
+            val pendingPcm = ArrayDeque<Pair<ByteArray, Long>>(MAX_PENDING_PCM)
             var inputDone = false
             var decoderDone = false
             var eosSignaledToEncoder = false
@@ -82,8 +81,9 @@ object AudioTranscoder {
             var muxerStarted = false
 
             while (!encoderDone) {
-                // ── Step 1: Feed compressed data into decoder ───────────────────────────
-                if (!inputDone) {
+
+                // ── Step 1: Feed compressed data into decoder (back-pressure if queue full) ──
+                if (!inputDone && pendingPcm.size < MAX_PENDING_PCM) {
                     val idx = decoder.dequeueInputBuffer(10_000L)
                     if (idx >= 0) {
                         val buf = decoder.getInputBuffer(idx)!!
@@ -98,16 +98,17 @@ object AudioTranscoder {
                     }
                 }
 
-                // ── Step 2: Drain PCM from decoder into queue ───────────────────────────
-                if (!decoderDone) {
+                // ── Step 2: Drain PCM from decoder → (downmix if needed) → queue ───────────
+                if (!decoderDone && pendingPcm.size < MAX_PENDING_PCM) {
                     val idx = decoder.dequeueOutputBuffer(bufferInfo, 10_000L)
                     if (idx >= 0) {
                         val buf = decoder.getOutputBuffer(idx)!!
                         if (bufferInfo.size > 0) {
-                            val data = ByteArray(bufferInfo.size)
+                            val raw = ByteArray(bufferInfo.size)
                             buf.position(bufferInfo.offset)
-                            buf.get(data)
-                            pendingPcm.addLast(data to bufferInfo.presentationTimeUs)
+                            buf.get(raw)
+                            val pcm = if (needsDownmix) downmixStereoToMono(raw) else raw
+                            pendingPcm.addLast(pcm to bufferInfo.presentationTimeUs)
                         }
                         decoder.releaseOutputBuffer(idx, false)
                         if (bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
@@ -116,7 +117,7 @@ object AudioTranscoder {
                     }
                 }
 
-                // ── Step 3: Feed PCM queue into encoder ─────────────────────────────────
+                // ── Step 3: Feed PCM queue into encoder ─────────────────────────────────────
                 if (!eosSignaledToEncoder) {
                     if (pendingPcm.isNotEmpty()) {
                         val idx = encoder.dequeueInputBuffer(10_000L)
@@ -136,7 +137,7 @@ object AudioTranscoder {
                     }
                 }
 
-                // ── Step 4: Drain encoder output into muxer ─────────────────────────────
+                // ── Step 4: Drain encoder output into muxer ─────────────────────────────────
                 val idx = encoder.dequeueOutputBuffer(bufferInfo, 10_000L)
                 when {
                     idx == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
@@ -168,6 +169,26 @@ object AudioTranscoder {
             runCatching { muxer?.stop(); muxer?.release() }
             runCatching { extractor.release() }
         }
+    }
+
+    /**
+     * Downmixes interleaved stereo 16-bit PCM → mono 16-bit PCM.
+     * Averages left and right samples for each frame.
+     */
+    private fun downmixStereoToMono(stereo: ByteArray): ByteArray {
+        val mono = ByteArray(stereo.size / 2)
+        var si = 0
+        var mi = 0
+        while (si + 3 < stereo.size) {
+            val left  = (stereo[si].toInt() and 0xFF) or (stereo[si + 1].toInt() shl 8)
+            val right = (stereo[si + 2].toInt() and 0xFF) or (stereo[si + 3].toInt() shl 8)
+            val mixed = ((left.toShort().toInt() + right.toShort().toInt()) shr 1).toShort()
+            mono[mi]     = (mixed.toInt() and 0xFF).toByte()
+            mono[mi + 1] = (mixed.toInt() shr 8 and 0xFF).toByte()
+            si += 4
+            mi += 2
+        }
+        return mono
     }
 
     private fun MediaFormat.getIntegerSafe(key: String, default: Int): Int =
