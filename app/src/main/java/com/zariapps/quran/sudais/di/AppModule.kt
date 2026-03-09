@@ -51,7 +51,8 @@ object AppModule {
     fun provideOkHttpClient(): OkHttpClient {
         return OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
+            .readTimeout(10, TimeUnit.MINUTES)  // large surahs (Al-Baqarah ~140 MB) need time
+            .writeTimeout(30, TimeUnit.SECONDS)
             .build()
     }
 
