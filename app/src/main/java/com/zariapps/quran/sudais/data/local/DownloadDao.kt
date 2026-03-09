@@ -27,6 +27,12 @@ interface DownloadDao {
     @Query("DELETE FROM downloads")
     suspend fun deleteAll()
 
+    @Query("SELECT COUNT(*) FROM downloads")
+    suspend fun count(): Int
+
+    @Query("SELECT surahNumber FROM downloads")
+    suspend fun getDownloadedNumbersOnce(): List<Int>
+
     @Query("SELECT SUM(fileSize) FROM downloads")
     fun getTotalSize(): Flow<Long?>
 }

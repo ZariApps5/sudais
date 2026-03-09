@@ -86,13 +86,13 @@ fun SurahListItem(
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 Text(
-                    text = surah.nameArabic,
+                    text = "${surah.nameEnglish} - ${surah.nameTranslation}",
                     style = MaterialTheme.typography.titleMedium,
                     fontSize = 20.sp,
                     textAlign = TextAlign.Start
                 )
                 Text(
-                    text = "${surah.nameEnglish} - ${surah.nameTranslation}",
+                    text = surah.nameArabic,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                 )
@@ -133,7 +133,7 @@ fun SurahListItem(
                 }
                 if (surah.isDownloading) {
                     CircularProgressIndicator(
-                        progress = { surah.downloadProgress },
+                        progress = surah.downloadProgress,
                         modifier = Modifier.size(20.dp),
                         strokeWidth = 2.dp,
                         color = MaterialTheme.colorScheme.primary

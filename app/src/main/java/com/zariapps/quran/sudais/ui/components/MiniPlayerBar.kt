@@ -41,7 +41,7 @@ fun MiniPlayerBar(
     ) {
         Column {
             LinearProgressIndicator(
-                progress = { progress.coerceIn(0f, 1f) },
+                progress = progress.coerceIn(0f, 1f),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(2.dp),

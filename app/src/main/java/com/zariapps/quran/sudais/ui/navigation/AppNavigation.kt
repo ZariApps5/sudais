@@ -4,21 +4,34 @@ import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import com.zariapps.quran.sudais.ui.biography.BiographyScreen
 import com.zariapps.quran.sudais.ui.downloads.DownloadsScreen
 import com.zariapps.quran.sudais.ui.home.HomeScreen
+import com.zariapps.quran.sudais.ui.initialdownload.InitialDownloadScreen
 import com.zariapps.quran.sudais.ui.player.PlayerScreen
 import com.zariapps.quran.sudais.ui.settings.SettingsScreen
 
 object Routes {
+    const val INITIAL_DOWNLOAD = "initial_download"
     const val HOME = "home"
     const val PLAYER = "player"
     const val SETTINGS = "settings"
     const val DOWNLOADS = "downloads"
+    const val BIOGRAPHY = "biography"
 }
 
 @Composable
 fun AppNavigation(navController: NavHostController) {
-    NavHost(navController = navController, startDestination = Routes.HOME) {
+    NavHost(navController = navController, startDestination = Routes.INITIAL_DOWNLOAD) {
+        composable(Routes.INITIAL_DOWNLOAD) {
+            InitialDownloadScreen(
+                onReady = {
+                    navController.navigate(Routes.HOME) {
+                        popUpTo(Routes.INITIAL_DOWNLOAD) { inclusive = true }
+                    }
+                }
+            )
+        }
         composable(Routes.HOME) {
             HomeScreen(
                 onNavigateToPlayer = { navController.navigate(Routes.PLAYER) },
@@ -31,11 +44,15 @@ fun AppNavigation(navController: NavHostController) {
         composable(Routes.SETTINGS) {
             SettingsScreen(
                 onBack = { navController.popBackStack() },
-                onNavigateToDownloads = { navController.navigate(Routes.DOWNLOADS) }
+                onNavigateToDownloads = { navController.navigate(Routes.DOWNLOADS) },
+                onNavigateToBiography = { navController.navigate(Routes.BIOGRAPHY) }
             )
         }
         composable(Routes.DOWNLOADS) {
             DownloadsScreen(onBack = { navController.popBackStack() })
+        }
+        composable(Routes.BIOGRAPHY) {
+            BiographyScreen(onBack = { navController.popBackStack() })
         }
     }
 }
