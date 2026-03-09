@@ -30,7 +30,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 private const val TAG = "DownloadManager"
-private const val STALL_THRESHOLD_MS = 5 * 60 * 1000L
+private const val STALL_THRESHOLD_MS  = 5 * 60 * 1000L
 private const val WATCHDOG_INTERVAL_MS = 60 * 1000L
 
 data class DownloadProgress(
@@ -57,7 +57,9 @@ class DownloadManager @Inject constructor(
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var bulkJob: Job? = null
-    private val transcodeSemaphore = Semaphore(2) // max 2 concurrent transcodings
+
+    // Max 2 simultaneous transcodings — keeps thermals stable while downloads run
+    private val transcodeSemaphore = Semaphore(2)
 
     private val _downloadProgress = MutableStateFlow<Map<Int, DownloadProgress>>(emptyMap())
     val downloadProgress: StateFlow<Map<Int, DownloadProgress>> = _downloadProgress.asStateFlow()
@@ -68,14 +70,19 @@ class DownloadManager @Inject constructor(
     suspend fun areAllDownloaded(): Boolean = downloadDao.count() >= 114
 
     /**
-     * Downloads all 114 surahs 5 at a time, shortest-first.
-     * A watchdog auto-restarts if all downloads stall for 5 minutes.
+     * Entry point called on every app launch.
+     *  1. Downloads any missing surahs (5 at a time, shortest first).
+     *  2. Resumes transcoding for any surahs still stored as MP3
+     *     (handles the case where the app was killed mid-transcode on a previous run).
      */
     fun downloadAll() {
         if (_bulkDownloadState.value.isRunning) return
         startBulkDownload()
         startWatchdog()
+        resumePendingTranscodes()  // pick up where we left off after a restart
     }
+
+    // ── Download ────────────────────────────────────────────────────────────────
 
     private fun startBulkDownload() {
         bulkJob = scope.launch {
@@ -97,10 +104,9 @@ class DownloadManager @Inject constructor(
                 completedFiles = alreadyDownloaded.size,
                 isRunning = true
             )
-            Log.i(TAG, "Starting bulk download: ${toDownload.size} surahs remaining.")
+            Log.i(TAG, "Bulk download: ${toDownload.size} surahs remaining.")
 
             val semaphore = Semaphore(5)
-
             toDownload.map { surahNumber ->
                 async {
                     semaphore.withPermit {
@@ -118,29 +124,28 @@ class DownloadManager @Inject constructor(
 
     private fun startWatchdog() {
         scope.launch {
-            var lastCompletedCount = _bulkDownloadState.value.completedFiles
+            var lastCount = _bulkDownloadState.value.completedFiles
             var lastProgressAt = System.currentTimeMillis()
 
             while (true) {
                 delay(WATCHDOG_INTERVAL_MS)
-
                 val state = _bulkDownloadState.value
                 if (!state.isRunning) break
 
-                if (state.completedFiles > lastCompletedCount) {
-                    lastCompletedCount = state.completedFiles
+                if (state.completedFiles > lastCount) {
+                    lastCount = state.completedFiles
                     lastProgressAt = System.currentTimeMillis()
                     Log.d(TAG, "Watchdog OK: ${state.completedFiles}/114")
                 } else {
                     val stalledMs = System.currentTimeMillis() - lastProgressAt
                     Log.w(TAG, "Watchdog: no progress for ${stalledMs / 1000}s")
                     if (stalledMs >= STALL_THRESHOLD_MS) {
-                        Log.w(TAG, "Watchdog: stall — restarting download.")
+                        Log.w(TAG, "Watchdog: stall — restarting.")
                         bulkJob?.cancelAndJoin()
                         _bulkDownloadState.value = BulkDownloadState()
                         delay(1_000)
                         startBulkDownload()
-                        lastCompletedCount = _bulkDownloadState.value.completedFiles
+                        lastCount = _bulkDownloadState.value.completedFiles
                         lastProgressAt = System.currentTimeMillis()
                     }
                 }
@@ -154,7 +159,7 @@ class DownloadManager @Inject constructor(
         Log.d(TAG, "Downloading surah $surahNumber")
 
         try {
-            val url = ReciterConfig.getAudioUrl(surahNumber)
+            val url      = ReciterConfig.getAudioUrl(surahNumber)
             val response = okHttpClient.newCall(Request.Builder().url(url).build()).execute()
 
             if (!response.isSuccessful) {
@@ -171,10 +176,10 @@ class DownloadManager @Inject constructor(
             }
 
             val totalBytes = body.contentLength()
-            val audioDir = getAudioDirectory()
-            val padded = surahNumber.toString().padStart(3, '0')
-            val tempFile = File(audioDir, "${padded}_tmp.mp3")
-            val finalFile = File(audioDir, "${padded}.mp3")
+            val audioDir   = getAudioDirectory()
+            val padded     = surahNumber.toString().padStart(3, '0')
+            val tempFile   = File(audioDir, "${padded}_tmp.mp3")
+            val finalFile  = File(audioDir, "${padded}.mp3")
 
             var bytesRead = 0L
             body.byteStream().use { input ->
@@ -195,43 +200,26 @@ class DownloadManager @Inject constructor(
                 }
             }
             tempFile.renameTo(finalFile)
-            Log.d(TAG, "Surah $surahNumber: ${finalFile.length() / 1024} KB")
+            Log.d(TAG, "Surah $surahNumber: ${finalFile.length() / 1024} KB downloaded")
 
+            // Register MP3 immediately — surah is playable offline right now
             downloadDao.insert(DownloadEntity(
-                surahNumber = surahNumber,
-                filePath = finalFile.absolutePath,
-                fileSize = finalFile.length(),
+                surahNumber  = surahNumber,
+                filePath     = finalFile.absolutePath,
+                fileSize     = finalFile.length(),
                 downloadedAt = System.currentTimeMillis()
             ))
             updateProgress(surahNumber, DownloadProgress(
-                surahNumber = surahNumber,
+                surahNumber     = surahNumber,
                 bytesDownloaded = bytesRead,
-                totalBytes = totalBytes,
-                progress = 1f,
-                isComplete = true
+                totalBytes      = totalBytes,
+                progress        = 1f,
+                isComplete      = true
             ))
 
-            // Background transcode MP3 → AAC 32 kbps mono.
-            // Only replaces the MP3 if the output is actually smaller (size guard).
-            scope.launch {
-                transcodeSemaphore.withPermit {
-                    val m4aFile = File(audioDir, "${padded}.m4a")
-                    val ok = AudioTranscoder.transcodeToAac(finalFile, m4aFile)
-                    if (ok && m4aFile.length() < finalFile.length()) {
-                        downloadDao.insert(DownloadEntity(
-                            surahNumber = surahNumber,
-                            filePath    = m4aFile.absolutePath,
-                            fileSize    = m4aFile.length(),
-                            downloadedAt = System.currentTimeMillis()
-                        ))
-                        finalFile.delete()
-                        Log.d(TAG, "Surah $surahNumber: ${finalFile.length() / 1024}KB → ${m4aFile.length() / 1024}KB AAC")
-                    } else {
-                        m4aFile.delete()
-                        Log.d(TAG, "Surah $surahNumber: kept MP3 (transcode ${if (ok) "larger" else "failed"})")
-                    }
-                }
-            }
+            // Queue background transcode (non-blocking)
+            launchTranscode(surahNumber, finalFile, audioDir, padded)
+
         } catch (e: Exception) {
             Log.e(TAG, "Surah $surahNumber: ${e.message}")
             updateProgress(surahNumber, DownloadProgress(
@@ -240,14 +228,76 @@ class DownloadManager @Inject constructor(
         }
     }
 
+    // ── Transcoding ─────────────────────────────────────────────────────────────
+
+    /**
+     * On startup, finds any DB entries still pointing to .mp3 files and
+     * re-queues them for transcoding. Handles the case where the app was
+     * killed before a previous transcode session could finish.
+     */
+    private fun resumePendingTranscodes() {
+        scope.launch {
+            val allDownloads = downloadDao.getAllDownloadsOnce()
+            val pending = allDownloads.filter { it.filePath.endsWith(".mp3") }
+            if (pending.isEmpty()) {
+                Log.i(TAG, "No pending MP3→AAC conversions.")
+                return@launch
+            }
+            Log.i(TAG, "Resuming ${pending.size} pending transcodes.")
+            val audioDir = getAudioDirectory()
+            pending.forEach { entity ->
+                val mp3 = File(entity.filePath)
+                if (mp3.exists()) {
+                    val padded = entity.surahNumber.toString().padStart(3, '0')
+                    launchTranscode(entity.surahNumber, mp3, audioDir, padded)
+                }
+            }
+        }
+    }
+
+    /**
+     * Launches a background transcode for one surah. Uses the size guard:
+     * only replaces the MP3 if the resulting AAC is genuinely smaller.
+     */
+    private fun launchTranscode(
+        surahNumber: Int,
+        mp3File: File,
+        audioDir: File,
+        padded: String
+    ) {
+        scope.launch {
+            transcodeSemaphore.withPermit {
+                val m4aFile   = File(audioDir, "${padded}.m4a")
+                val mp3SizeKb = mp3File.length() / 1024
+                val ok        = AudioTranscoder.transcodeToAac(mp3File, m4aFile)
+
+                if (ok && m4aFile.length() < mp3File.length()) {
+                    downloadDao.insert(DownloadEntity(
+                        surahNumber  = surahNumber,
+                        filePath     = m4aFile.absolutePath,
+                        fileSize     = m4aFile.length(),
+                        downloadedAt = System.currentTimeMillis()
+                    ))
+                    mp3File.delete()
+                    Log.d(TAG, "Surah $surahNumber: ${mp3SizeKb}KB → ${m4aFile.length() / 1024}KB AAC ✓")
+                } else {
+                    m4aFile.delete()
+                    Log.d(TAG, "Surah $surahNumber: kept ${mp3SizeKb}KB MP3 (transcode ${if (ok) "was larger" else "failed"})")
+                }
+            }
+        }
+    }
+
+    // ── Misc ────────────────────────────────────────────────────────────────────
+
     suspend fun deleteDownload(surahNumber: Int) {
         val download = downloadDao.getDownload(surahNumber) ?: return
         File(download.filePath).delete()
         downloadDao.delete(surahNumber)
     }
 
-    fun getTotalSize() = downloadDao.getTotalSize()
-    fun getAllDownloads() = downloadDao.getAllDownloads()
+    fun getTotalSize()    = downloadDao.getTotalSize()
+    fun getAllDownloads()  = downloadDao.getAllDownloads()
 
     private fun getAudioDirectory(): File {
         val dir = File(context.getExternalFilesDir("audio"), "sds")

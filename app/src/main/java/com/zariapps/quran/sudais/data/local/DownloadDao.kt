@@ -33,6 +33,9 @@ interface DownloadDao {
     @Query("SELECT surahNumber FROM downloads")
     suspend fun getDownloadedNumbersOnce(): List<Int>
 
+    @Query("SELECT * FROM downloads")
+    suspend fun getAllDownloadsOnce(): List<DownloadEntity>
+
     @Query("SELECT SUM(fileSize) FROM downloads")
     fun getTotalSize(): Flow<Long?>
 }
