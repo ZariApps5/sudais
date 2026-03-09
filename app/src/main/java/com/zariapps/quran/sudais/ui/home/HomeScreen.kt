@@ -1,6 +1,5 @@
 package com.zariapps.quran.sudais.ui.home
 
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -32,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.zariapps.quran.sudais.config.ReciterConfig
+import com.zariapps.quran.sudais.data.model.SurahData
 import com.zariapps.quran.sudais.data.model.SurahFilter
 import com.zariapps.quran.sudais.ui.components.MiniPlayerBar
 import com.zariapps.quran.sudais.ui.components.SurahListItem
@@ -79,12 +79,12 @@ fun HomeScreen(
         },
         bottomBar = {
             if (currentSurah != null) {
-                val surah = surahs.find { it.number == currentSurah }
-                if (surah != null) {
+                val surahEntity = SurahData.allSurahs.find { it.number == currentSurah }
+                if (surahEntity != null) {
                     val progress = if (duration > 0) position.toFloat() / duration else 0f
                     MiniPlayerBar(
-                        surahName = surah.nameEnglish,
-                        surahNameArabic = surah.nameArabic,
+                        surahName = surahEntity.nameEnglish,
+                        surahNameArabic = surahEntity.nameArabic,
                         isPlaying = isPlaying,
                         progress = progress,
                         onPlayPause = { viewModel.playerManager.togglePlayPause() },
