@@ -2,6 +2,7 @@ package com.zariapps.quran.sudais.download
 
 import android.content.Context
 import android.util.Log
+import com.zariapps.quran.sudais.audio.AudioTranscoder
 import com.zariapps.quran.sudais.config.ReciterConfig
 import com.zariapps.quran.sudais.data.local.DownloadDao
 import com.zariapps.quran.sudais.data.local.DownloadEntity
@@ -56,6 +57,7 @@ class DownloadManager @Inject constructor(
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var bulkJob: Job? = null
+    private val transcodeSemaphore = Semaphore(2) // max 2 concurrent transcodings
 
     private val _downloadProgress = MutableStateFlow<Map<Int, DownloadProgress>>(emptyMap())
     val downloadProgress: StateFlow<Map<Int, DownloadProgress>> = _downloadProgress.asStateFlow()
@@ -208,6 +210,28 @@ class DownloadManager @Inject constructor(
                 progress = 1f,
                 isComplete = true
             ))
+
+            // Background transcode MP3 → AAC 32 kbps mono.
+            // Only replaces the MP3 if the output is actually smaller (size guard).
+            scope.launch {
+                transcodeSemaphore.withPermit {
+                    val m4aFile = File(audioDir, "${padded}.m4a")
+                    val ok = AudioTranscoder.transcodeToAac(finalFile, m4aFile)
+                    if (ok && m4aFile.length() < finalFile.length()) {
+                        downloadDao.insert(DownloadEntity(
+                            surahNumber = surahNumber,
+                            filePath    = m4aFile.absolutePath,
+                            fileSize    = m4aFile.length(),
+                            downloadedAt = System.currentTimeMillis()
+                        ))
+                        finalFile.delete()
+                        Log.d(TAG, "Surah $surahNumber: ${finalFile.length() / 1024}KB → ${m4aFile.length() / 1024}KB AAC")
+                    } else {
+                        m4aFile.delete()
+                        Log.d(TAG, "Surah $surahNumber: kept MP3 (transcode ${if (ok) "larger" else "failed"})")
+                    }
+                }
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Surah $surahNumber: ${e.message}")
             updateProgress(surahNumber, DownloadProgress(
