@@ -14,5 +14,5 @@ data class Surah(
 )
 
 enum class SurahFilter {
-    ALL, FAVORITES, DOWNLOADED
+    ALL, FAVORITES
 }

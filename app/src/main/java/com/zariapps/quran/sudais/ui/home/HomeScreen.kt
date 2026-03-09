@@ -150,9 +150,7 @@ fun HomeScreen(
                         surah = surah,
                         isCurrentlyPlaying = currentSurah == surah.number,
                         onPlay = { viewModel.playSurah(surah.number) },
-                        onFavoriteToggle = { viewModel.toggleFavorite(surah.number, surah.isFavorite) },
-                        onDownload = { viewModel.downloadSurah(surah.number) },
-                        onDeleteDownload = { viewModel.deleteDownload(surah.number) }
+                        onFavoriteToggle = { viewModel.toggleFavorite(surah.number, surah.isFavorite) }
                     )
                 }
             }

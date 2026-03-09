@@ -7,12 +7,10 @@ import androidx.navigation.compose.composable
 import com.zariapps.quran.sudais.ui.biography.BiographyScreen
 import com.zariapps.quran.sudais.ui.downloads.DownloadsScreen
 import com.zariapps.quran.sudais.ui.home.HomeScreen
-import com.zariapps.quran.sudais.ui.initialdownload.InitialDownloadScreen
 import com.zariapps.quran.sudais.ui.player.PlayerScreen
 import com.zariapps.quran.sudais.ui.settings.SettingsScreen
 
 object Routes {
-    const val INITIAL_DOWNLOAD = "initial_download"
     const val HOME = "home"
     const val PLAYER = "player"
     const val SETTINGS = "settings"
@@ -22,16 +20,7 @@ object Routes {
 
 @Composable
 fun AppNavigation(navController: NavHostController) {
-    NavHost(navController = navController, startDestination = Routes.INITIAL_DOWNLOAD) {
-        composable(Routes.INITIAL_DOWNLOAD) {
-            InitialDownloadScreen(
-                onReady = {
-                    navController.navigate(Routes.HOME) {
-                        popUpTo(Routes.INITIAL_DOWNLOAD) { inclusive = true }
-                    }
-                }
-            )
-        }
+    NavHost(navController = navController, startDestination = Routes.HOME) {
         composable(Routes.HOME) {
             HomeScreen(
                 onNavigateToPlayer = { navController.navigate(Routes.PLAYER) },

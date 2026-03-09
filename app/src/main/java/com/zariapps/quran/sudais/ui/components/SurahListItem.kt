@@ -12,13 +12,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -40,8 +37,6 @@ fun SurahListItem(
     isCurrentlyPlaying: Boolean,
     onPlay: () -> Unit,
     onFavoriteToggle: () -> Unit,
-    onDownload: () -> Unit,
-    onDeleteDownload: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -118,41 +113,15 @@ fun SurahListItem(
                 }
             }
 
-            // Action buttons
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                IconButton(onClick = onFavoriteToggle, modifier = Modifier.size(36.dp)) {
-                    Icon(
-                        imageVector = if (surah.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                        contentDescription = "Favorite",
-                        tint = if (surah.isFavorite) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-                if (surah.isDownloading) {
-                    CircularProgressIndicator(
-                        progress = surah.downloadProgress,
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                } else {
-                    IconButton(
-                        onClick = { if (surah.isDownloaded) onDeleteDownload() else onDownload() },
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(
-                            imageVector = if (surah.isDownloaded) Icons.Default.DownloadDone
-                            else Icons.Default.Download,
-                            contentDescription = if (surah.isDownloaded) "Downloaded" else "Download",
-                            tint = if (surah.isDownloaded) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
+            // Favourite button
+            IconButton(onClick = onFavoriteToggle, modifier = Modifier.size(36.dp)) {
+                Icon(
+                    imageVector = if (surah.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                    contentDescription = "Favourite",
+                    tint = if (surah.isFavorite) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                    modifier = Modifier.size(20.dp)
+                )
             }
         }
     }

@@ -3,7 +3,7 @@ package com.zariapps.quran.sudais.config
 object ReciterConfig {
     const val RECITER_NAME = "Abdul Rahman Al-Sudais"
     const val RECITER_NAME_ARABIC = "عبدالرحمن السديس"
-    const val AUDIO_BASE_URL = "https://server11.mp3quran.net/sds/"
+    const val AUDIO_BASE_URL = "https://download.quranicaudio.com/quran/abdurrahmaan_as-sudays/"
     const val APP_NAME = "Quran - Al-Sudais"
 
     // Play Store URL — update once the app is published

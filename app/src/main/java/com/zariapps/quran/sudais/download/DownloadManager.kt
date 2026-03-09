@@ -1,7 +1,6 @@
 package com.zariapps.quran.sudais.download
 
 import android.content.Context
-import com.zariapps.quran.sudais.audio.AudioTranscoder
 import com.zariapps.quran.sudais.config.ReciterConfig
 import com.zariapps.quran.sudais.data.local.DownloadDao
 import com.zariapps.quran.sudais.data.local.DownloadEntity
@@ -10,10 +9,15 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
@@ -29,13 +33,9 @@ data class DownloadProgress(
     val error: String? = null
 )
 
-enum class SurahProcessingStep { DOWNLOADING, TRANSCODING }
-
 data class BulkDownloadState(
     val totalFiles: Int = 114,
     val completedFiles: Int = 0,
-    val currentSurahNumber: Int? = null,
-    val currentStep: SurahProcessingStep = SurahProcessingStep.DOWNLOADING,
     val isRunning: Boolean = false,
     val isDone: Boolean = false
 )
@@ -57,8 +57,12 @@ class DownloadManager @Inject constructor(
 
     suspend fun areAllDownloaded(): Boolean = downloadDao.count() >= 114
 
-    /** Downloads all 114 surahs sequentially, skipping already-downloaded ones. */
-    fun downloadAllSequentially() {
+    /**
+     * Downloads all 114 surahs, 3 at a time, skipping already-downloaded ones.
+     * Files are stored as MP3 — no transcoding, so each surah is ready to play
+     * as soon as its download completes.
+     */
+    fun downloadAll() {
         if (_bulkDownloadState.value.isRunning) return
 
         scope.launch {
@@ -76,31 +80,25 @@ class DownloadManager @Inject constructor(
                 isRunning = true
             )
 
-            for (surahNumber in toDownload) {
-                _bulkDownloadState.value = _bulkDownloadState.value.copy(
-                    currentSurahNumber = surahNumber
-                )
-                downloadSurahSync(surahNumber)
-                _bulkDownloadState.value = _bulkDownloadState.value.copy(
-                    completedFiles = _bulkDownloadState.value.completedFiles + 1
-                )
-            }
+            // 3 concurrent downloads — balances speed vs. server politeness
+            val semaphore = Semaphore(3)
 
-            _bulkDownloadState.value = _bulkDownloadState.value.copy(
-                isRunning = false,
-                isDone = true,
-                currentSurahNumber = null
-            )
+            toDownload.map { surahNumber ->
+                async {
+                    semaphore.withPermit {
+                        downloadSurahSync(surahNumber)
+                        _bulkDownloadState.update { it.copy(completedFiles = it.completedFiles + 1) }
+                    }
+                }
+            }.awaitAll()
+
+            _bulkDownloadState.update { it.copy(isRunning = false, isDone = true) }
         }
     }
 
-    /**
-     * Downloads a single surah and transcodes it to 64 kbps AAC.
-     * Falls back to keeping the raw MP3 if transcoding fails.
-     */
+    /** Downloads a single surah and saves it as an MP3. */
     private suspend fun downloadSurahSync(surahNumber: Int) {
-        val progress = DownloadProgress(surahNumber = surahNumber)
-        updateProgress(surahNumber, progress)
+        updateProgress(surahNumber, DownloadProgress(surahNumber = surahNumber))
 
         try {
             val url = ReciterConfig.getAudioUrl(surahNumber)
@@ -108,25 +106,27 @@ class DownloadManager @Inject constructor(
             val response = okHttpClient.newCall(request).execute()
 
             if (!response.isSuccessful) {
-                updateProgress(surahNumber, progress.copy(error = "Download failed: ${response.code}"))
+                updateProgress(surahNumber, DownloadProgress(
+                    surahNumber = surahNumber,
+                    error = "Download failed: ${response.code}"
+                ))
                 return
             }
 
             val body = response.body ?: run {
-                updateProgress(surahNumber, progress.copy(error = "Empty response"))
+                updateProgress(surahNumber, DownloadProgress(surahNumber = surahNumber, error = "Empty response"))
                 return
             }
 
             val totalBytes = body.contentLength()
             val audioDir = getAudioDirectory()
             val paddedNumber = surahNumber.toString().padStart(3, '0')
-            val mp3File = File(audioDir, "${paddedNumber}_raw.mp3")
-            val m4aFile = File(audioDir, "${paddedNumber}.m4a")
+            val tempFile = File(audioDir, "${paddedNumber}_tmp.mp3")
+            val finalFile = File(audioDir, "${paddedNumber}.mp3")
 
-            // ── Phase 1: Download ────────────────────────────────────────────────────
             var bytesRead = 0L
             body.byteStream().use { input ->
-                mp3File.outputStream().use { output ->
+                tempFile.outputStream().use { output ->
                     val buffer = ByteArray(8192)
                     var read: Int
                     while (input.read(buffer).also { read = it } != -1) {
@@ -143,26 +143,7 @@ class DownloadManager @Inject constructor(
                 }
             }
 
-            // ── Phase 2: Transcode MP3 → AAC 64 kbps ────────────────────────────────
-            _bulkDownloadState.value = _bulkDownloadState.value.copy(
-                currentStep = SurahProcessingStep.TRANSCODING
-            )
-
-            val transcodedOk = AudioTranscoder.transcodeToAac(mp3File, m4aFile)
-            val finalFile: File
-            if (transcodedOk) {
-                mp3File.delete() // remove the original MP3
-                finalFile = m4aFile
-            } else {
-                // Transcoding failed — keep the MP3 as fallback
-                m4aFile.delete()
-                finalFile = File(audioDir, "${paddedNumber}.mp3")
-                mp3File.renameTo(finalFile)
-            }
-
-            _bulkDownloadState.value = _bulkDownloadState.value.copy(
-                currentStep = SurahProcessingStep.DOWNLOADING
-            )
+            tempFile.renameTo(finalFile)
 
             downloadDao.insert(
                 DownloadEntity(
@@ -181,18 +162,11 @@ class DownloadManager @Inject constructor(
                 isComplete = true
             ))
         } catch (e: Exception) {
-            updateProgress(surahNumber, progress.copy(error = e.message ?: "Unknown error"))
+            updateProgress(surahNumber, DownloadProgress(
+                surahNumber = surahNumber,
+                error = e.message ?: "Unknown error"
+            ))
         }
-    }
-
-    /** Fire-and-forget download for individual surahs from the UI. */
-    fun download(surahNumber: Int) {
-        if (activeJobs.containsKey(surahNumber)) return
-        val job = scope.launch {
-            downloadSurahSync(surahNumber)
-            activeJobs.remove(surahNumber)
-        }
-        activeJobs[surahNumber] = job
     }
 
     fun cancelDownload(surahNumber: Int) {
@@ -209,11 +183,6 @@ class DownloadManager @Inject constructor(
         downloadDao.delete(surahNumber)
     }
 
-    fun getLocalFilePath(surahNumber: Int): String {
-        val audioDir = getAudioDirectory()
-        return File(audioDir, "${surahNumber.toString().padStart(3, '0')}.mp3").absolutePath
-    }
-
     fun getTotalSize() = downloadDao.getTotalSize()
 
     fun getAllDownloads() = downloadDao.getAllDownloads()
@@ -225,8 +194,8 @@ class DownloadManager @Inject constructor(
     }
 
     private fun updateProgress(surahNumber: Int, progress: DownloadProgress) {
-        val current = _downloadProgress.value.toMutableMap()
-        current[surahNumber] = progress
-        _downloadProgress.value = current
+        _downloadProgress.update { current ->
+            current.toMutableMap().also { it[surahNumber] = progress }
+        }
     }
 }

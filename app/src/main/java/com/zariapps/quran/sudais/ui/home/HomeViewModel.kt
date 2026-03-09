@@ -33,22 +33,13 @@ class HomeViewModel @Inject constructor(
     val surahList: StateFlow<List<Surah>> = combine(
         surahRepository.getAllSurahs(),
         _searchQuery,
-        _filter,
-        downloadManager.downloadProgress
-    ) { surahs, query, filter, progress ->
+        _filter
+    ) { surahs, query, filter ->
         surahs
-            .map { surah ->
-                val dp = progress[surah.number]
-                surah.copy(
-                    isDownloading = dp != null && !dp.isComplete && dp.error == null,
-                    downloadProgress = dp?.progress ?: 0f
-                )
-            }
             .filter { surah ->
                 when (filter) {
                     SurahFilter.ALL -> true
                     SurahFilter.FAVORITES -> surah.isFavorite
-                    SurahFilter.DOWNLOADED -> surah.isDownloaded
                 }
             }
             .filter { surah ->
@@ -65,6 +56,9 @@ class HomeViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             surahRepository.initializeSurahs()
+            // Silently download all surahs in the background for offline use.
+            // The player will stream from the network until each file is ready.
+            downloadManager.downloadAll()
         }
     }
 
@@ -85,16 +79,6 @@ class HomeViewModel @Inject constructor(
     fun playSurah(surahNumber: Int) {
         viewModelScope.launch {
             playerManager.play(surahNumber)
-        }
-    }
-
-    fun downloadSurah(surahNumber: Int) {
-        downloadManager.download(surahNumber)
-    }
-
-    fun deleteDownload(surahNumber: Int) {
-        viewModelScope.launch {
-            downloadManager.deleteDownload(surahNumber)
         }
     }
 }
