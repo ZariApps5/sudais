@@ -14,7 +14,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Star
@@ -43,7 +42,6 @@ import com.zariapps.quran.sudais.config.ReciterConfig
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
-    onNavigateToDownloads: () -> Unit,
     onNavigateToBiography: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
@@ -103,42 +101,6 @@ fun SettingsScreen(
                         )
                     }
                     Switch(checked = isDarkMode, onCheckedChange = { viewModel.toggleDarkMode() })
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Downloads
-            Card(
-                onClick = onNavigateToDownloads,
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                )
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Default.LibraryMusic,
-                        contentDescription = "Audio Library",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(horizontal = 16.dp)
-                    ) {
-                        Text("Audio Library", style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            "All 114 surahs · fully offline",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                        )
-                    }
                 }
             }
 

@@ -18,6 +18,8 @@ class PlayerViewModel @Inject constructor(
     val duration: StateFlow<Long> = playerManager.duration
     val playbackSpeed: StateFlow<Float> = playerManager.playbackSpeed
 
+    val allSurahs = SurahData.allSurahs
+
     fun getSurahInfo(number: Int) = SurahData.allSurahs.find { it.number == number }
 
     fun togglePlayPause() = playerManager.togglePlayPause()
@@ -25,4 +27,5 @@ class PlayerViewModel @Inject constructor(
     fun playNext() = playerManager.playNext()
     fun playPrevious() = playerManager.playPrevious()
     fun setSpeed(speed: Float) = playerManager.setSpeed(speed)
+    fun playSurah(number: Int) = playerManager.play(number)
 }

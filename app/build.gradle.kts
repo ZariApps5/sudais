@@ -22,10 +22,20 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("../store_assets/quran-sudais-release.jks")
+            storePassword = "SudaisQuran2024!"
+            keyAlias = "quran-sudais"
+            keyPassword = "SudaisQuran2024!"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
