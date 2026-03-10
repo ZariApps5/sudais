@@ -1,6 +1,5 @@
 package com.zariapps.quran.sudais.data.repository
 
-import com.zariapps.quran.sudais.data.local.DownloadDao
 import com.zariapps.quran.sudais.data.local.PlaybackDao
 import com.zariapps.quran.sudais.data.local.PlaybackStateEntity
 import com.zariapps.quran.sudais.data.local.SurahDao
@@ -8,14 +7,13 @@ import com.zariapps.quran.sudais.data.local.SurahEntity
 import com.zariapps.quran.sudais.data.model.Surah
 import com.zariapps.quran.sudais.data.model.SurahData
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class SurahRepository @Inject constructor(
     private val surahDao: SurahDao,
-    private val downloadDao: DownloadDao,
     private val playbackDao: PlaybackDao
 ) {
     suspend fun initializeSurahs() {
@@ -25,10 +23,7 @@ class SurahRepository @Inject constructor(
     }
 
     fun getAllSurahs(): Flow<List<Surah>> {
-        return combine(
-            surahDao.getAllSurahs(),
-            downloadDao.getDownloadedSurahNumbers()
-        ) { surahs, downloadedNumbers ->
+        return surahDao.getAllSurahs().map { surahs ->
             surahs.map { entity ->
                 Surah(
                     number = entity.number,
@@ -38,7 +33,7 @@ class SurahRepository @Inject constructor(
                     ayahCount = entity.ayahCount,
                     revelationType = entity.revelationType,
                     isFavorite = entity.isFavorite,
-                    isDownloaded = entity.number in downloadedNumbers
+                    isDownloaded = true  // all surahs are always available (bundled in assets)
                 )
             }
         }
