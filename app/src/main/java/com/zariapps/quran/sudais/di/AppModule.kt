@@ -8,7 +8,6 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.room.Room
-import com.zariapps.quran.sudais.data.local.DownloadDao
 import com.zariapps.quran.sudais.data.local.PlaybackDao
 import com.zariapps.quran.sudais.data.local.QuranDatabase
 import com.zariapps.quran.sudais.data.local.SurahDao
@@ -17,8 +16,6 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import okhttp3.OkHttpClient
-import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
@@ -34,27 +31,14 @@ object AppModule {
             context,
             QuranDatabase::class.java,
             "quran_database"
-        ).build()
+        ).fallbackToDestructiveMigration().build()
     }
 
     @Provides
     fun provideSurahDao(db: QuranDatabase): SurahDao = db.surahDao()
 
     @Provides
-    fun provideDownloadDao(db: QuranDatabase): DownloadDao = db.downloadDao()
-
-    @Provides
     fun providePlaybackDao(db: QuranDatabase): PlaybackDao = db.playbackDao()
-
-    @Provides
-    @Singleton
-    fun provideOkHttpClient(): OkHttpClient {
-        return OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(10, TimeUnit.MINUTES)  // large surahs (Al-Baqarah ~140 MB) need time
-            .writeTimeout(30, TimeUnit.SECONDS)
-            .build()
-    }
 
     @Provides
     @Singleton

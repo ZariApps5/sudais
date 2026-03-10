@@ -4,12 +4,11 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 
 @Database(
-    entities = [SurahEntity::class, DownloadEntity::class, PlaybackStateEntity::class],
-    version = 1,
+    entities = [SurahEntity::class, PlaybackStateEntity::class],
+    version = 2,
     exportSchema = false
 )
 abstract class QuranDatabase : RoomDatabase() {
     abstract fun surahDao(): SurahDao
-    abstract fun downloadDao(): DownloadDao
     abstract fun playbackDao(): PlaybackDao
 }

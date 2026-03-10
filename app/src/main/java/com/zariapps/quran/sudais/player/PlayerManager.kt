@@ -5,7 +5,6 @@ import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import com.zariapps.quran.sudais.config.ReciterConfig
-import com.zariapps.quran.sudais.data.local.DownloadDao
 import com.zariapps.quran.sudais.data.repository.SurahRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -16,14 +15,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class PlayerManager @Inject constructor(
     val exoPlayer: ExoPlayer,
-    private val downloadDao: DownloadDao,
     private val surahRepository: SurahRepository
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -63,15 +60,9 @@ class PlayerManager @Inject constructor(
         })
     }
 
-    suspend fun play(surahNumber: Int) {
+    fun play(surahNumber: Int) {
         _currentSurahNumber.value = surahNumber
-        val download = downloadDao.getDownload(surahNumber)
-        val uri = if (download != null && File(download.filePath).exists()) {
-            download.filePath
-        } else {
-            ReciterConfig.getAudioUrl(surahNumber)
-        }
-
+        val uri = ReciterConfig.getAudioAssetUri(surahNumber)
         exoPlayer.setMediaItem(MediaItem.fromUri(uri))
         exoPlayer.prepare()
         exoPlayer.play()
@@ -99,7 +90,7 @@ class PlayerManager @Inject constructor(
     fun playNext() {
         val current = _currentSurahNumber.value ?: return
         if (current < 114) {
-            scope.launch { play(current + 1) }
+            play(current + 1)
         }
     }
 
@@ -108,7 +99,7 @@ class PlayerManager @Inject constructor(
         if (exoPlayer.currentPosition > 3000) {
             seekTo(0)
         } else if (current > 1) {
-            scope.launch { play(current - 1) }
+            play(current - 1)
         }
     }
 

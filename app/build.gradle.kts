@@ -50,6 +50,10 @@ android {
         kotlinCompilerExtensionVersion = "1.5.8"
     }
 
+    androidResources {
+        noCompress += "mp3"
+    }
+
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -89,9 +93,6 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.2.1")
     implementation("androidx.media3:media3-session:1.2.1")
     implementation("androidx.media3:media3-ui:1.2.1")
-
-    // OkHttp
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     // DataStore
     implementation("androidx.datastore:datastore-preferences:1.0.0")

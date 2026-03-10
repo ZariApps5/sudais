@@ -5,7 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.zariapps.quran.sudais.data.model.Surah
 import com.zariapps.quran.sudais.data.model.SurahFilter
 import com.zariapps.quran.sudais.data.repository.SurahRepository
-import com.zariapps.quran.sudais.download.DownloadManager
 import com.zariapps.quran.sudais.player.PlayerManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,7 +19,6 @@ import javax.inject.Inject
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val surahRepository: SurahRepository,
-    private val downloadManager: DownloadManager,
     val playerManager: PlayerManager
 ) : ViewModel() {
 
@@ -56,9 +54,6 @@ class HomeViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             surahRepository.initializeSurahs()
-            // Silently download all surahs in the background for offline use.
-            // The player will stream from the network until each file is ready.
-            downloadManager.downloadAll()
         }
     }
 
@@ -77,8 +72,6 @@ class HomeViewModel @Inject constructor(
     }
 
     fun playSurah(surahNumber: Int) {
-        viewModelScope.launch {
-            playerManager.play(surahNumber)
-        }
+        playerManager.play(surahNumber)
     }
 }

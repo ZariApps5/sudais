@@ -14,7 +14,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Star
@@ -123,8 +123,8 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        Icons.Default.Download,
-                        contentDescription = "Downloads",
+                        Icons.Default.LibraryMusic,
+                        contentDescription = "Audio Library",
                         tint = MaterialTheme.colorScheme.primary
                     )
                     Column(
@@ -132,9 +132,9 @@ fun SettingsScreen(
                             .weight(1f)
                             .padding(horizontal = 16.dp)
                     ) {
-                        Text("Downloads", style = MaterialTheme.typography.titleMedium)
+                        Text("Audio Library", style = MaterialTheme.typography.titleMedium)
                         Text(
-                            "Manage downloaded surahs",
+                            "All 114 surahs · fully offline",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )
