@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "230083842626",
+    "project_id": "sudais-quran-53f92",
+    "storage_bucket": "sudais-quran-53f92.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:230083842626:android:5837c219327c76d84a93db",
+        "android_client_info": {
+          "package_name": "com.zariapps.quran.sudais"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDB4Iq9GyS2c4ICVXQlgeFQM-zAoeTTFEk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
