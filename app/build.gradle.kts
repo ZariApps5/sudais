@@ -15,8 +15,8 @@ android {
         applicationId = "com.zariapps.quran.sudais"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "1.0.0"
+        versionCode = 5
+        versionName = "1.0.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -115,6 +115,9 @@ dependencies {
 
     // Google AdMob
     implementation("com.google.android.gms:play-services-ads:23.2.0")
+
+    // Google Play In-App Review
+    implementation("com.google.android.play:review-ktx:2.0.2")
 
     // Firebase
     implementation(platform("com.google.firebase:firebase-bom:34.12.0"))

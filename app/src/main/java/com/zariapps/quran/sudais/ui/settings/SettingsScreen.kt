@@ -1,5 +1,6 @@
 package com.zariapps.quran.sudais.ui.settings
 
+import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.layout.Column
@@ -37,6 +38,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.zariapps.quran.sudais.config.ReciterConfig
+import com.zariapps.quran.sudais.ui.review.InAppReviewManager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -145,8 +147,13 @@ fun SettingsScreen(
             // Rate the App
             Card(
                 onClick = {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(ReciterConfig.PLAY_STORE_URL))
-                    context.startActivity(intent)
+                    val activity = context as? Activity
+                    if (activity != null) {
+                        InAppReviewManager.requestReview(activity)
+                    } else {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(ReciterConfig.PLAY_STORE_URL))
+                        context.startActivity(intent)
+                    }
                 },
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
