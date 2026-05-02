@@ -15,8 +15,8 @@ android {
         applicationId = "com.zariapps.quran.sudais"
         minSdk = 26
         targetSdk = 35
-        versionCode = 5
-        versionName = "1.0.1"
+        versionCode = 6
+        versionName = "1.0.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -99,9 +99,9 @@ dependencies {
     ksp("androidx.room:room-compiler:2.6.1")
 
     // Media3 / ExoPlayer
-    implementation("androidx.media3:media3-exoplayer:1.2.1")
-    implementation("androidx.media3:media3-session:1.2.1")
-    implementation("androidx.media3:media3-ui:1.2.1")
+    implementation("androidx.media3:media3-exoplayer:1.4.1")
+    implementation("androidx.media3:media3-session:1.4.1")
+    implementation("androidx.media3:media3-ui:1.4.1")
 
     // DataStore
     implementation("androidx.datastore:datastore-preferences:1.0.0")
@@ -114,7 +114,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
 
     // Google AdMob
-    implementation("com.google.android.gms:play-services-ads:23.2.0")
+    implementation("com.google.android.gms:play-services-ads:23.6.0")
 
     // Google Play In-App Review
     implementation("com.google.android.play:review-ktx:2.0.2")
