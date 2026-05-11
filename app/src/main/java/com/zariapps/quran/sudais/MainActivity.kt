@@ -63,14 +63,10 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(Unit) {
                 delay(1500)
                 if (!playerManager.isPlaying.value) {
-                    appOpenAdManager.showIfAvailable(this@MainActivity) {
-                        showSplash = false
-                        maybeRequestReview()
-                    }
-                } else {
-                    showSplash = false
-                    maybeRequestReview()
+                    appOpenAdManager.showWhenReady(this@MainActivity)
                 }
+                showSplash = false
+                maybeRequestReview()
             }
 
             if (showSplash) {
